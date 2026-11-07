@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Pet Merge Haven</title>
+  <meta name="description" content="Merge adorable pets, fill adoption orders and grow your pet haven.">
+  <meta name="theme-color" content="#9be0a0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 1. INTELLIGENCE STUDIO LOADING SCREEN -->
+  <div id="ciel-loading-screen" class="ciel-loading-overlay">
+    <div class="ciel-loading-clouds">
+      <div class="l-cloud lc-1"></div>
+      <div class="l-cloud lc-2"></div>
+      <div class="l-cloud lc-3"></div>
+    </div>
+    <div class="ciel-loading-content">
+      <!-- Intelligence Studio Brand Badge -->
+      <div class="ciel-brand-badge">
+        <span class="ciel-brand-logo-box">IS</span>
+        <span class="ciel-brand-text">INTELLIGENCE STUDIO</span>
+      </div>
+
+      <!-- Game Title -->
+      <div class="ciel-game-brand">
+        <h1 class="ciel-game-title">Pet Merge Haven</h1>
+        <div class="ciel-game-subtitle">🐾 Merge · Adopt · Grow 🐾</div>
+      </div>
+
+      <!-- Procedural Art Generation Showcase -->
+      <div class="loading-art-showcase">
+        <canvas id="loading-hero-canvas" width="300" height="190"></canvas>
+        <div class="loading-pets-row" id="loading-pets-row">
+          <!-- Dynamically populated with procedurally generated pets -->
+        </div>
+      </div>
+
+      <!-- Loading Progress -->
+      <div class="loading-bar-wrapper">
+        <div class="loading-bar-track">
+          <div id="ciel-progress-bar" class="loading-bar-fill">
+            <span class="loading-bar-spark"></span>
+          </div>
+        </div>
+        <div class="loading-meta">
+          <span id="ciel-loading-status" class="loading-status-text">Waking up baby pets...</span>
+          <span id="ciel-loading-percent" class="loading-percent-text">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MAIN MENU -->
+  <div id="mainMenu" class="screen-overlay menu-screen" aria-hidden="true">
+    <div class="menu-card">
+      <div class="ciel-brand-badge">
+        <span class="ciel-brand-logo-box">IS</span>
+        <span class="ciel-brand-text">INTELLIGENCE STUDIO</span>
+      </div>
+      <h1 class="menu-title">Pet Merge Haven</h1>
+      <div class="menu-pets" id="menuPets"></div>
+      <div class="menu-save" id="menuSave"></div>
+      <div class="menu-actions">
+        <button class="menu-btn mb-continue" id="menuContinue">
+          <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20" fill="currentColor"/></svg>
+          Continue
+        </button>
+        <button class="menu-btn mb-new" id="menuNew">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          New Game
+        </button>
+        <div class="menu-row row3">
+          <button class="menu-btn mb-small" id="menuSettings">
+            <svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="none" stroke="currentColor" stroke-width="2.3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.6 7.6 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>Settings</span>
+          </button>
+          <button class="menu-btn mb-small" id="menuMusic">
+            <svg viewBox="0 0 24 24"><path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.8" fill="currentColor"/><circle cx="17.5" cy="16" r="2.8" fill="currentColor"/><path class="slash" d="M3 3l18 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+            <span>Music</span>
+          </button>
+          <button class="menu-btn mb-small mb-exit" id="menuExit">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Exit</span>
+          </button>
+        </div>
+      </div>
+      <div class="menu-footer">© Intelligence Studio</div>
+    </div>
+
+    <!-- New game confirmation (only when a save exists) -->
+    <div id="newGameConfirm" class="screen-overlay confirm-layer" aria-hidden="true">
+      <div class="exit-modal-card">
+        <div class="exit-modal-badge">START OVER?</div>
+        <p class="exit-modal-desc">Starting a new game will erase your current pets, coins and level.</p>
+        <div class="exit-modal-actions">
+          <button class="exit-action-btn btn-leave-tab" id="newGameYes">Erase &amp; Start</button>
+          <button class="exit-action-btn btn-keep-playing" id="newGameNo">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. PAUSE SCREEN -->
+  <div id="pauseScreen" class="screen-overlay pause-screen" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="exit-modal-card pause-card">
+      <div class="exit-modal-badge">PAUSED</div>
+      <div class="exit-modal-art"><img id="pausePetImg" class="exit-modal-pet" alt=""></div>
+      <div class="pause-stats" id="pauseStats"></div>
+      <div class="pause-actions">
+        <button class="menu-btn mb-continue" id="pauseResume">
+          <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20" fill="currentColor"/></svg>
+          Resume
+        </button>
+        <div class="menu-row row3">
+          <button class="menu-btn mb-small" id="pauseSettings">
+            <svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="none" stroke="currentColor" stroke-width="2.3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.6 7.6 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>Settings</span>
+          </button>
+          <button class="menu-btn mb-small" id="pauseMusic">
+            <svg viewBox="0 0 24 24"><path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.8" fill="currentColor"/><circle cx="17.5" cy="16" r="2.8" fill="currentColor"/><path class="slash" d="M3 3l18 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+            <span>Music</span>
+          </button>
+          <button class="menu-btn mb-small mb-exit" id="pauseExit">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Exit</span>
+          </button>
+        </div>
+        <div class="menu-row">
+          <button class="menu-btn mb-small mb-help" id="pauseHelp">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M9.3 9.4a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2 1-1.2 1.8v.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.4" fill="currentColor"/></svg>
+            <span>How to Play</span>
+          </button>
+          <button class="menu-btn mb-small mb-home" id="pauseMenu">
+            <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Main Menu</span>
+          </button>
+        </div>
+      </div>
+      <p class="pause-note">Progress is saved automatically.</p>
+    </div>
+  </div>
+
+  <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+
+  <div id="app">
+    <!-- DESKTOP COMPANION BAR (only visible in companion mode) -->
+    <div id="compBar">
+      <div class="cb-coins"><i class="coin"></i><b id="cbCoins">0</b><small id="cbRate">0/s</small></div>
+      <button class="btn big" id="cbBuy"><img id="cbBuyIcon" alt=""><span><i class="coin sm"></i><b id="cbCost">0</b></span></button>
+      <button class="icon-btn" id="cbExit" aria-label="Back to the full game">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <header id="top">
+      <div class="top-left">
+        <!-- PAUSE BUTTON (opens pause screen) -->
+        <button class="icon-btn back-btn" id="pauseBtn" aria-label="Pause" title="Pause">
+          <svg viewBox="0 0 24 24" width="22" height="22"><rect x="6" y="5" width="4.2" height="14" rx="1.4" fill="currentColor"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.4" fill="currentColor"/></svg>
+        </button>
+        <div class="lvl-badge"><small>LV</small><b id="lvl">1</b></div>
+        <div id="xpBar"><div id="xpFill"></div><span id="xpText">0 / 10</span></div>
+      </div>
+      <div class="top-btns">
+        <button class="icon-btn" id="bookBtn" aria-label="Pet collection">
+          <svg viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5a2.5 2.5 0 0 0 0 5H20v-2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 4.5v15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn" id="soundBtn" aria-label="Toggle sound">
+          <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="none" stroke="currentColor" stroke-width="2.3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.6 7.6 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="icon-btn" id="musicBtn" aria-label="Toggle music">
+          <svg viewBox="0 0 24 24"><path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.8" fill="currentColor"/><circle cx="17.5" cy="16" r="2.8" fill="currentColor"/><path class="slash" d="M3 3l18 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <aside id="left" class="panel">
+      <div class="panel-title">Adoption Board</div>
+      <div id="streakChip"></div>
+      <div id="orders"></div>
+    </aside>
+
+    <main id="boardWrap">
+      <div id="boardFrame">
+        <div id="boardView"><div id="boardMask"><div id="board"></div></div></div>
+        <button class="pan-arrow pa-l" data-pan="-1,0" aria-label="Look left">‹</button>
+        <button class="pan-arrow pa-r" data-pan="1,0" aria-label="Look right">›</button>
+        <button class="pan-arrow pa-u" data-pan="0,-1" aria-label="Look up">‹</button>
+        <button class="pan-arrow pa-d" data-pan="0,1" aria-label="Look down">‹</button>
+      </div>
+    </main>
+
+    <aside id="right" class="panel">
+      <div class="pill coins"><i class="coin"></i><b id="coins">0</b><small id="rate">0/s</small></div>
+      <div id="boosts"></div>
+      <button class="btn big" id="buyBtn">
+        <img id="buyIcon" alt="">
+        <span><em>Buy egg</em><b><i class="coin"></i><span id="cost">0</span></b></span>
+      </button>
+      <div id="hatch"><div id="hatchFill"></div><span>Free egg</span></div>
+      <button id="amBar" class="am-bar" type="button" hidden><span class="am-fill"></span><span class="am-txt">Auto Merge</span></button>
+      <div class="row2">
+        <button class="btn small" id="shopBtn">
+          <svg viewBox="0 0 24 24"><path d="M5 8h14l-1.2 12H6.2z" fill="currentColor"/><path d="M9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>
+          Shop
+        </button>
+        <div class="btn small sell" id="sell">
+          <svg class="bin" viewBox="0 0 24 24"><path class="lid" d="M4 7h16M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+          <span class="sell-lbl">Sell</span>
+        </div>
+      </div>
+      <!-- SHOP docked on wide screens (PC) -->
+      <div id="dockShop">
+        <div class="dock-title">Shop <small>keys 1–8 · Shift = max</small></div>
+        <div class="upg-list"></div>
+      </div>
+      <p class="hint">Drag matching pets together to merge. Tap a locked tile to unlock it.</p>
+    </aside>
+  </div>
+
+  <!-- GUIDED TUTORIAL (level 1) -->
+  <div id="tut" class="tut" aria-live="polite">
+    <div class="tut-block"></div><div class="tut-block"></div><div class="tut-block"></div><div class="tut-block"></div>
+    <div class="tut-spot"></div>
+    <div class="tut-hand"><span class="tut-ring"></span><img class="tut-pet" alt=""><span class="tut-finger">👆</span></div>
+    <div class="tut-bubble" role="dialog" aria-label="Tutorial">
+      <div class="tut-icons"></div>
+      <h3 class="tut-title"></h3>
+      <p class="tut-text"></p>
+      <div class="tut-foot">
+        <div class="tut-dots"></div>
+        <span class="tut-turn">Your turn! 👆</span>
+        <button class="tut-next">Next ›</button>
+      </div>
+      <button class="tut-skip">Skip tutorial</button>
+    </div>
+  </div>
+
+  <div id="fx"></div>
+  <div id="toast"></div>
+  <div id="undoSell" class="undo-chip" role="status"></div>
+  <div id="achToast" role="status" aria-live="polite"></div>
+  <div id="tip" role="tooltip"></div>
+  <div id="modal" class="hidden"><div class="card" id="modalCard"></div></div>
+
+  <!-- EXIT CONFIRMATION MODAL (Leave the Tab & Keep Playing) -->
+  <div id="gameExitModal" class="exit-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="exitModalTitle">
+    <div class="exit-modal-card">
+      <div class="exit-modal-badge" id="exitModalTitle">LEAVE GAME?</div>
+      <div class="exit-modal-art">
+        <img id="exitModalPetImg" class="exit-modal-pet" alt="Pet Haven Mascot">
+      </div>
+      <p class="exit-modal-desc">
+        Are you sure you want to leave?<br>
+        Your pets, coins, and level progress are safely saved.
+      </p>
+      <div class="exit-modal-actions">
+        <button id="btnConfirmExit" class="exit-action-btn btn-leave-tab" title="Leave the Tab">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Exit Game
+        </button>
+        <button id="btnCancelExit" class="exit-action-btn btn-keep-playing" title="Keep Playing">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <polygon points="6 4 20 12 6 20 6 4"/>
+          </svg>
+          Stay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="platform.js"></script>
+  <script src="art.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
