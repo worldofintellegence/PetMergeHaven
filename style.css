@@ -1450,3 +1450,130 @@ body.companion #boardView { position: static; background: none; -webkit-mask-ima
   #amBar { grid-column: 1 / -1; grid-row: 5; height: 22px; }
   .am-txt { line-height: 22px; font-size: 12px; }
 }
+
+/* =====================================================================
+   UX AUDIT FIXES (Nov 2026)
+   ===================================================================== */
+
+/* ---------- 1.1 living main menu ---------- */
+.menu-screen { overflow: hidden; }
+.menu-scene { position: absolute; inset: 0; pointer-events: none; transform: translate(var(--px, 0px), var(--py, 0px)); transition: transform .35s ease-out; }
+.walker { position: absolute; left: 0; will-change: transform; }
+.walker img { display: block; transform-origin: 50% 100%; animation: walkHop .55s ease-in-out infinite; filter: drop-shadow(0 6px 4px rgba(60, 40, 20, .18)); }
+@keyframes walkHop { 0%, 100% { translate: 0 0; } 50% { translate: 0 -9%; } }
+.menu-card { position: relative; z-index: 30; }
+.menu-title { font-size: clamp(34px, 5vw, 68px); line-height: 1; margin: 6px 0 2px; }
+.menu-title .logo-txt {
+  display: inline-block; color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(110deg, var(--ink) 0 44%, #fff6c8 50%, var(--ink) 56% 100%); background-size: 300% 100%; background-repeat: no-repeat; background-position: 100% 0;
+  filter: drop-shadow(0 3px 0 #fff) drop-shadow(0 5px 0 rgba(74, 53, 88, .15));
+  animation: logoShine 6s ease-in-out infinite, logoBob 3s ease-in-out infinite;
+}
+@keyframes logoShine { 0%, 70% { background-position: 100% 0; } 100% { background-position: 0% 0; } }
+@keyframes logoBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.menu-version { position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: 10px; z-index: 30; font-size: 12px; font-weight: 700; color: rgba(74, 53, 88, .6); }
+.menu-btn[hidden] { display: none; }
+.menu-btn.mb-new.mb-primary { background: var(--green); box-shadow: 0 6px 0 var(--green-dark); color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, .2); font-size: 22px; padding: 16px; }
+@media (min-width: 1100px) and (min-height: 680px) {
+  .menu-card { width: 480px; padding: 26px 26px 16px; }
+  .menu-btn { font-size: 22px; padding: 15px 18px; }
+  .mb-small { font-size: 16px; padding: 11px 8px; }
+  .menu-pets img { width: 70px; height: 70px; }
+  .menu-pets img.hero-pet { width: 100px; height: 100px; }
+}
+body.reduce-motion .walker img, body.reduce-motion .menu-title .logo-txt { animation: none; }
+
+/* ---------- 1.4 buttons: hover lift, quick press, springy release ---------- */
+.menu-btn, .btn, .icon-btn, .tut-next { transition: transform .22s cubic-bezier(.34, 1.56, .64, 1), filter .12s, box-shadow .08s; }
+@media (hover: hover) and (pointer: fine) {
+  .menu-btn:hover, .btn:not(.disabled):hover, .icon-btn:hover, .tut-next:hover { transform: scale(1.04); transition-duration: .12s; transition-timing-function: cubic-bezier(.2, .8, .2, 1); }
+}
+.menu-btn:active, .btn:not(.disabled):active, .icon-btn:active, .tut-next:active { transform: translateY(3px) scale(.98); transition-duration: .06s; }
+/* 2.2 visible keyboard focus */
+:focus-visible { outline: 3px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px var(--ink) !important; }
+
+/* ---------- 3.x Shop rows: delta chip, one "Best pick", purchase pop ---------- */
+.shop-item .txt { min-width: 0; }
+.shop-item .txt b small { font-size: 12px; color: var(--ink-soft); }
+.shop-item .sub { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; }
+.shop-item .delta { flex: none; background: #e9f7e6; color: #2d7d3a; font-weight: 700; font-size: 12px; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.shop-item .short { font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.shop-item.ready { box-shadow: none; }
+.shop-item.rec { box-shadow: inset 0 0 0 3px #ffd54a, 0 0 14px rgba(255, 213, 74, .45); }
+.tag-rec { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; vertical-align: middle; font-size: 12px; color: #5a3300; background: linear-gradient(135deg, #ffd54a, #ff9a3c); }
+.shop-item.bought { animation: rowPop .34s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes rowPop { 0% { transform: scale(1); background: #fff3c4; } 40% { transform: scale(1.03); } 100% { transform: scale(1); background: #fff; } }
+.float.buyfx { font-size: 16px; color: #fff; -webkit-text-stroke: 2px var(--green-dark); }
+.float.tick { font-size: 15px; }
+#dockShop.flash { animation: dockFlash .8s ease; border-radius: 14px; }
+@keyframes dockFlash { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 4px #ffd54a, 0 0 20px 6px rgba(255, 213, 74, .6); } }
+
+/* ---------- 3.6 slim level-up banner (early levels) ---------- */
+#lvlBanner {
+  position: fixed; left: 50%; top: calc(var(--top-h) + var(--pad) + 8px); z-index: 9550; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; max-width: 92vw; padding: 5px 16px 5px 5px; border-radius: 999px;
+  background: linear-gradient(135deg, #fff7d6, #ffe3ef); border: 3px solid #ffd54a; box-shadow: 0 8px 22px rgba(0, 0, 0, .2);
+  transform: translate(-50%, -160%); opacity: 0; transition: transform .32s cubic-bezier(.34, 1.56, .64, 1), opacity .2s;
+}
+#lvlBanner.show { transform: translate(-50%, 0); opacity: 1; }
+.lb-badge { flex: none; width: 42px; height: 42px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: .9;
+  background: radial-gradient(circle at 35% 30%, #fff3a6, var(--gold) 55%, var(--gold-dark)); border: 3px solid #fff; color: #7a4a00; font-weight: 700; font-size: 18px; }
+.lb-badge small { font-size: 10px; }
+.lb-txt { font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- 6.1 exit recap + collection teaser ---------- */
+.exit-recap { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0 0 12px; font-size: 13px; }
+.exit-recap[hidden] { display: none; }
+.exit-recap b { width: 100%; text-align: center; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-soft); }
+.exit-recap span { background: #fff; border-radius: 999px; padding: 3px 10px; font-weight: 700; color: var(--ink); box-shadow: 0 2px 0 rgba(0, 0, 0, .08); }
+.teaser { margin: 12px 0 0; padding: 10px 12px; border-radius: 14px; text-align: center; font-size: 14px; color: var(--ink);
+  background: linear-gradient(135deg, #e7f4ff, #f1e9ff); border: 2px dashed #a98bf0; }
+
+/* ---------- settings ---------- */
+.set-head { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-soft); margin: 6px 2px 0; }
+.set-row.btns.one { grid-template-columns: 1fr; }
+
+/* ---------- 4.2 Auto Merge bar never shrinks ---------- */
+#amBar { flex: none; height: 26px; min-height: 26px; }
+@media (orientation: portrait) { #amBar { height: 24px; min-height: 24px; } .am-txt { line-height: 24px; } }
+
+/* ---------- 4.4 minimum text sizes ---------- */
+.lvl-badge small { font-size: 10px; font-weight: 700; }
+#hatch span { font-size: 12px; }
+.dock-title small { font-size: 12px; }
+.tag-boost { font-size: 12px; }
+.order .oname { font-size: 12px; }
+body.big-text .shop-item .short, body.big-text .shop-item .delta { font-size: 13.5px; }
+body.big-text .order .oname, body.big-text .am-txt, body.big-text #hatch span, body.big-text .pill small { font-size: 14px; }
+body.big-text .tut-text { font-size: 17px; }
+body.big-text #tip { font-size: 15px; }
+body.big-text .hint { font-size: 13px; }
+body.big-text .cell .lv { font-size: max(13px, calc(var(--board) * .026)); }
+
+/* ---------- 4.1 pan arrows: only near the edge with a mouse; touch players drag ---------- */
+@media (hover: hover) and (pointer: fine) {
+  .pan-arrow { opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #boardFrame.near-l .pa-l, #boardFrame.near-r .pa-r, #boardFrame.near-u .pa-u, #boardFrame.near-d .pa-d { opacity: .92; pointer-events: auto; }
+}
+@media (hover: none) { .pan-arrow:not(.ping) { opacity: 0; pointer-events: none; } }
+.pan-arrow.ping { opacity: 1 !important; }
+
+/* ---------- 4.5 lighter edge fade ---------- */
+#boardFrame.can-l #boardView { --fl: 10%; }
+#boardFrame.can-r #boardView { --fr: 10%; }
+#boardFrame.can-u #boardView { --fu: 10%; }
+#boardFrame.can-d #boardView { --fd: 10%; }
+
+/* ---------- 4.6 phone: achievement toast stays in the top bar ---------- */
+@media (orientation: portrait) {
+  #achToast { top: 4px; padding: 4px 12px 4px 6px; }
+  #achToast .ach-cup { font-size: 20px; }
+  #achToast b { font-size: 14px; }
+  #lvlBanner { top: calc(var(--top-h) + 6px); }
+}
+
+/* ---------- 5.1 off-screen pets stop animating; big merges jolt the board ---------- */
+.cell.off .pet { animation-play-state: paused; }
+#boardFrame.jolt { animation: jolt .14s ease-out; }
+@keyframes jolt { 0% { transform: translate(0, 0); } 25% { transform: translate(-4px, 2px); } 50% { transform: translate(4px, -2px); } 75% { transform: translate(-2px, 1px); } 100% { transform: translate(0, 0); } }
+.menu-title .logo-txt { text-shadow: none; }

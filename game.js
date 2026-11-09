@@ -125,14 +125,17 @@
 
   // Settings live outside the save so "New Game" never resets them.
   const SET_KEY = 'petMergeHaven.settings';
-  const SET = Object.assign({ music: 0.7, sfx: 1, zoom: 1, reduceMotion: false, sci: false }, (() => {
+  const SET_DEFAULTS = { master: 1, music: 0.7, sfx: 1, zoom: 1, reduceMotion: false, sci: false, floats: true, bigText: false };
+  const VERSION = 'v0.5';
+  const SET = Object.assign({}, SET_DEFAULTS, (() => {
     try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; }
   })());
   function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(SET)); } catch (e) {} }
   function applySettings() {
     document.body.classList.toggle('reduce-motion', !!SET.reduceMotion);
+    document.body.classList.toggle('big-text', !!SET.bigText);
     if (Platform.canZoom) Platform.setZoom(SET.zoom);
-    if (typeof MUSIC !== 'undefined') MUSIC.setVolume(SET.music);
+    if (typeof MUSIC !== 'undefined') MUSIC.setVolume(SET.music * SET.master);
   }
 
   // ---------- economy ----------
@@ -183,7 +186,7 @@
       const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
       o.type = type; o.frequency.setValueAtTime(f, t);
       if (slide) o.frequency.exponentialRampToValueAtTime(f * slide, t + d);
-      g.gain.setValueAtTime(Math.max(0.0002, vol * SET.sfx), t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      g.gain.setValueAtTime(Math.max(0.0002, vol * SET.sfx * SET.master), t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
       o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + 0.02);
     } catch (e) {}
   }
@@ -191,12 +194,13 @@
     merge: (l) => { tone(300 + l * 50, 0.15, 'triangle', 0.2, 2); setTimeout(() => tone(500 + l * 70, 0.2, 'sine', 0.14, 1.5), 70); },
     pop: () => tone(620, 0.07, 'sine', 0.1, 1.5),
     tap: () => tone(1100, 0.06, 'square', 0.035, 1.3),
-    buy: () => tone(420, 0.12, 'triangle', 0.16, 1.7),
+    buy: (m = 1) => tone(420 * m, 0.12, 'triangle', 0.16, 1.7),
     bad: () => tone(170, 0.16, 'sawtooth', 0.07, 0.7),
     cash: () => { tone(880, 0.08, 'square', 0.05); setTimeout(() => tone(1320, 0.12, 'square', 0.05), 80); },
     unlock: () => { tone(330, 0.1, 'square', 0.06, 1.5); setTimeout(() => tone(660, 0.18, 'triangle', 0.14, 1.3), 90); },
     fanfare: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.16), i * 110)),
     hover: () => tone(880, 0.07, 'sine', 0.09, 1.5),
+    uiHover: () => tone(1200 * (0.95 + Math.random() * 0.1), 0.03, 'sine', 0.025),
     // whoosh into the bin, then a "ka-ching"
     sell: () => {
       tone(900, 0.2, 'sawtooth', 0.035, 0.3);
@@ -220,7 +224,7 @@
       [84, _, 83, _, 79, _, 76, _], [81, 79, 76, _, 72, _, _, _], [77, _, 81, 84, 86, _, 84, 81], [79, _, _, 83, 86, _, 84, _],
     ];
     const ARP = [0, 1, 2, 1, 0, 1, 2, 1];
-    let ac, out, noise, timer = null, step = 0, next = 0, on = false, vol = SET.music;
+    let ac, out, noise, timer = null, step = 0, next = 0, on = false, vol = SET.music * SET.master;
     const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
     function note(m, t, dur, type, vol, attack = 0.01) {
       const o = ac.createOscillator(), g = ac.createGain();
@@ -286,6 +290,18 @@
   function toggleMusic() { S.music = !S.music; syncMusic(); renderHUD(); save(); SFX.tap(); }
   window.addEventListener('pointerdown', () => { if (S.music && !MUSIC.on) syncMusic(); else if (AC && AC.state === 'suspended') AC.resume().catch(() => {}); }, true);
 
+  let hoverBtn = null, hoverAt = 0;
+  document.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const b = e.target.closest && e.target.closest('button, .btn, .menu-btn, .icon-btn');
+    if (!b || b === hoverBtn || b.disabled || b.classList.contains('disabled')) { if (!b) hoverBtn = null; return; }
+    hoverBtn = b;
+    const now = performance.now();
+    if (now - hoverAt > 80) { hoverAt = now; SFX.uiHover(); }
+  });
+  let jinglePlayed = false;
+  window.addEventListener('pointerdown', () => { if (!jinglePlayed) { jinglePlayed = true; setTimeout(() => SFX.good(), 60); } }, { once: true, capture: true });
+
   // Gameplay events, used by the tutorial to notice when the player did the step.
   function tutEvent(ev) { if (tut) tutOnEvent(ev); achSoon(); }
 
@@ -327,7 +343,7 @@
 
   let lastAfford = null;
   function renderHUD() {
-    $('#coins').textContent = fmt(S.coins);
+    if (coinShown === null) $('#coins').textContent = fmt(S.coins);
     $('#rate').textContent = fmt(totalIncome() * rushMul()) + '/s';
     const cost = eggCost();
     $('#cost').textContent = fmt(cost);
@@ -366,9 +382,10 @@
         d.dataset.k = k;
         d.className = 'order cust' + (S.grid.includes(o.level) ? ' ready' : '') + (since < ARRIVE * 1000 + 100 ? ' arrive' : '');
         d.style.setProperty('--d', -Math.min(since, 600) + 'ms');
+        const known = S.discovered.includes(o.level);
         d.innerHTML = `<img class="cust-av" src="${custImg(o.cust)}" alt="Customer">
-          <div class="req"><img class="req-pet" src="${IMGS[o.level - 1]}" alt="">
-            <div class="otxt"><div class="oname">${PETS[o.level - 1].name}</div>
+          <div class="req"><img class="req-pet${known ? '' : ' unknown'}" src="${IMGS[o.level - 1]}" alt="">
+            <div class="otxt"><div class="oname">${known ? PETS[o.level - 1].name : 'Merge to discover!'}</div>
             <div class="reward"><i class="coin sm"></i>${fmt(orderReward(o))}</div></div></div>
           <div class="obar"><i></i></div>`;
         paintBar(d, o);
@@ -413,8 +430,8 @@
     d.textContent = text; d.style.left = x + 'px'; d.style.top = y + 'px';
     fx.appendChild(d); setTimeout(() => d.remove(), 1000);
   }
-  function sparks(x, y, n = 12) {
-    const cols = ['#ffd23a', '#ff7fa8', '#7fd3ff', '#9be67a', '#ffffff'];
+  function sparks(x, y, n = 12, palette) {
+    const cols = palette || ['#ffd23a', '#ff7fa8', '#7fd3ff', '#9be67a', '#ffffff'];
     for (let k = 0; k < n; k++) {
       const s = document.createElement('div');
       s.className = 'spark';
@@ -465,25 +482,50 @@
         <small>Lv ${L}${known ? ' · ' + fmt(income(L)) + '/s' : ''}</small></div>`;
     }).join('');
     openModal(`<h2>Pet Collection</h2><p>${S.discovered.length} / ${MAX} discovered · ${S.served} adoptions</p>
-      <div class="book">${items}</div>${achListHTML()}<div class="actions"><button class="btn go" data-close>Close</button></div>`);
+      <div class="book">${items}</div>
+      <div class="teaser">❄️ <b>Snowy Peak</b> and ✨ <b>Starry Sky</b> — new habitats with new pets are coming soon!</div>${achListHTML()}<div class="actions"><button class="btn go" data-close>Close</button></div>`);
   }
 
   // ---------- upgrades (shared by Shop and Level-Up popup) ----------
   const canBuyUpg = (k) => !upgMaxed(k) && S.coins >= upgCost(k);
   const readyUpgCount = () => Object.keys(UPG).filter(canBuyUpg).length;
 
-  function upgRow(k) {
+  const UPG_SHORT = { egg: 'Better eggs', hatch: 'Faster free eggs', charm: 'More coins from pets', cuddle: 'Bigger cuddle rewards',
+    family: 'Bigger adoption rewards', amerge: 'Merges & serves for you', auto: 'Pets get petted for you', rush: 'All pets earn ×2' };
+  const UPG_GROUPS = [['Coins', ['charm', 'family']], ['Pets', ['egg', 'hatch', 'cuddle']], ['Automation', ['amerge']], ['Boosters', ['auto', 'rush']]];
+  // what the next level changes, as a short "before → after" chip
+  function upgDelta(k) {
+    const l = S.upg[k];
+    if (isBoost(k)) return S.boost[k] > 0 ? `<span data-left="${k}">⏱ ${mmss(S.boost[k])} left</span>` : '+3 min';
+    if (upgMaxed(k)) return 'Maxed';
+    switch (k) {
+      case 'egg': return `${PETS[Math.min(l, MAX - 1)].name} → ${PETS[Math.min(l + 1, MAX - 1)].name}`;
+      case 'hatch': return `${hatchInterval(l).toFixed(1)}s → ${hatchInterval(l + 1).toFixed(1)}s`;
+      case 'charm': return `+${l * 25}% → +${(l + 1) * 25}%`;
+      case 'cuddle': return `+${l * 50}% → +${(l + 1) * 50}%`;
+      case 'family': return `+${l * 20}% → +${(l + 1) * 20}%`;
+      case 'amerge': return l ? `${amDur(l)}s → ${amDur(l + 1)}s run` : 'Unlock';
+    }
+    return '';
+  }
+  // one clear suggestion instead of "Ready!" everywhere: Auto Merge first, then the cheapest affordable upgrade
+  function recommendedUpg() {
+    const can = Object.keys(UPG).filter((k) => !isBoost(k) && canBuyUpg(k));
+    if (!can.length) return null;
+    if (can.includes('amerge') && !S.upg.amerge) return 'amerge';
+    return can.sort((a, b) => upgCost(a) - upgCost(b))[0];
+  }
+  function upgRow(k, rec) {
     const u = UPG[k], boost = isBoost(k), maxed = upgMaxed(k), ok = canBuyUpg(k);
-    const left = boost && S.boost[k] > 0 ? `<br><span class="boost-left" data-left="${k}">⏱ ${mmss(S.boost[k])} left</span>` : '';
-    const lvl = boost ? '<span class="tag-boost">3 MIN</span>' : `<small>Lv ${S.upg[k]}</small>`;
-    return `<div class="shop-item${ok ? ' ready' : ''}"><div class="ic" style="background:${u.bg}">${u.icon}</div>
-      <div class="txt"><b>${u.name} ${lvl}${ok ? '<span class="tag-ready">Ready!</span>' : ''}</b><small>${maxed && !boost ? 'Maxed out!' : u.desc(S.upg[k])}${left}</small></div>
+    const lvl = boost ? '3 min' : `Lv ${S.upg[k]}`;
+    return `<div class="shop-item${ok ? ' ready' : ''}${rec === k ? ' rec' : ''}" data-row="${k}"><div class="ic" style="background:${u.bg}">${u.icon}</div>
+      <div class="txt"><b>${u.name} <small>${lvl}</small>${rec === k ? '<span class="tag-rec">★ Best pick</span>' : ''}</b>
+        <span class="sub"><span class="delta">${upgDelta(k)}</span><span class="short">${UPG_SHORT[k] || ''}</span></span></div>
       <button class="btn ${maxed || !ok ? 'disabled' : ''}" data-up="${k}">${maxed ? 'MAX' : `<i class="coin sm"></i>${fmt(upgCost(k))}`}</button></div>`;
   }
   function upgRowsHTML() {
-    const keys = Object.keys(UPG);
-    return '<div class="upg-sec">Upgrades</div>' + keys.filter((k) => !isBoost(k)).map(upgRow).join('')
-      + '<div class="upg-sec">Boosters</div>' + keys.filter(isBoost).map(upgRow).join('');
+    const rec = recommendedUpg();
+    return UPG_GROUPS.map(([g, keys]) => `<div class="upg-sec">${g}</div>` + keys.filter((k) => UPG[k]).map((k) => upgRow(k, rec)).join('')).join('');
   }
 
   function upgSubText() {
@@ -497,12 +539,23 @@
     const c = upgCost(k);
     if (S.coins < c) { SFX.bad(); if (el) shake(el); return false; }
     S.coins -= c;
+    const now = performance.now();
+    buyStreak = now - lastBuyAt < 1000 ? buyStreak + 1 : 0; lastBuyAt = now;
     if (isBoost(k)) { S.boost[k] += BOOST_ADD; S.stats.boosts++; SFX.fanfare(); toast(`${UPG[k].name} is on! ⏱ ${mmss(S.boost[k])}`); renderBoosts(); }
-    else { S.upg[k]++; SFX.buy(); if (k === 'amerge' && S.upg.amerge === 1) setTimeout(() => startAM(), 300); }
+    else { S.upg[k]++; SFX.buy(1 + Math.min(buyStreak, 8) * 0.06); if (k === 'amerge' && S.upg.amerge === 1) setTimeout(() => startAM(), 300); }
+    lastBought = k;
     save();
     if (el) { const [x, y] = centerOf(el); sparks(x, y, 10); }
     tutEvent('upgrade');
     return true;
+  }
+  let buyStreak = 0, lastBuyAt = 0, lastBought = null;
+  // after a list re-render: pop the row that was just bought and float a small chip from it
+  function celebrateBuy(k) {
+    document.querySelectorAll(`.upg-list [data-row="${k}"]`).forEach((row) => {
+      row.classList.remove('bought'); void row.offsetWidth; row.classList.add('bought');
+      if (row.offsetParent) { const r = row.getBoundingClientRect(); floatText(r.left + r.width * 0.45, r.top + 6, isBoost(k) ? '+3 min' : `Lv ${S.upg[k]}!`, 'buyfx'); }
+    });
   }
   // Shift+click buys as many levels as you can afford, Ctrl/Cmd+click up to 10.
   function buyUpgMulti(k, el, e) {
@@ -528,11 +581,16 @@
     root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-up]');
       if (!b || !root.contains(b)) return;
-      if (buyUpgMulti(b.dataset.up, b, e)) { refreshUpgLists(); renderAll(); }
+      if (buyUpgMulti(b.dataset.up, b, e)) { refreshUpgLists(); renderAll(); celebrateBuy(b.dataset.up); }
     });
   }
 
   function showShop() {
+    const dock = $('#dockShop');
+    if (dock && getComputedStyle(dock).display !== 'none' && modal.classList.contains('hidden')) {
+      dock.classList.remove('flash'); void dock.offsetWidth; dock.classList.add('flash'); SFX.tap();
+      return;
+    }
     openModal(`<h2>Shop</h2><div class="upg-list">${upgRowsHTML()}</div>
       <div class="actions"><button class="btn go" data-close>Close</button></div>
       <button class="reset">Reset progress</button>`, (root) => {
@@ -583,6 +641,16 @@
       spin();
     });
   }
+  let bannerT;
+  function showLevelBanner(lv, bonus, gifts) {
+    const b = $('#lvlBanner');
+    b.innerHTML = `<span class="lb-badge"><small>LV</small>${lv}</span><span class="lb-txt"><b>Level up!</b> +${fmt(bonus)} coins${gifts.length ? ` · 🎁 ${gifts.map(giftLabel).join(' · ')}` : ''}</span>`;
+    b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+    SFX.fanfare();
+    const r = b.getBoundingClientRect(); sparks(r.left + 30, r.top + r.height / 2, 14);
+    clearTimeout(bannerT); bannerT = setTimeout(() => b.classList.remove('show'), 2800);
+    refreshUpgLists(); renderAll();
+  }
   function showLevelUp(fromLv, toLv, bonus, gifts = []) {
     SFX.fanfare();
     const jumped = toLv - fromLv;
@@ -622,7 +690,7 @@
       addCoins(bonus);
       const gifts = [];
       for (let lv = from + 1; lv <= S.level; lv++) { const g = grantRandomUpgrade(); if (g) gifts.push(g); }
-      showLevelUp(from, S.level, bonus, gifts);
+      if (S.level < 5) showLevelBanner(S.level, bonus, gifts); else showLevelUp(from, S.level, bonus, gifts);
       renderHUD(); save();
     }
     renderXP();
@@ -675,11 +743,16 @@
     const L = S.grid[from] + 1;
     S.grid[from] = 0; S.grid[to] = L;
     renderCell(from); renderCell(to, true);
-    const vis = inView(to), [x, y] = centerOf(cells[to]);
-    if (vis) { sparks(x, y, 18); mergeBurst(x, y, cells[to]); }
+    const vis = inView(to), [x, y] = centerOf(cells[to]), isNew = !S.discovered.includes(L);
+    if (vis) {
+      const c = PETS[L - 1].color;
+      sparks(x, y, 18, [c, shade(c, 0.35), shade(c, -0.2), '#ffd23a', '#ffffff']);
+      mergeBurst(x, y, cells[to]);
+      if ((isNew || L >= 5) && !SET.reduceMotion) { const f = $('#boardFrame'); f.classList.remove('jolt'); void f.offsetWidth; f.classList.add('jolt'); }
+    }
     SFX.merge(L);
     discover(L);
-    addXP(L, vis ? x : null, y);
+    addXP(L * (isNew ? 3 : 1), vis ? x : null, y);
     S.stats.merges++;
     renderOrders(); renderHUD();
     tutEvent('merge');
@@ -690,14 +763,14 @@
     const reward = orderReward(o), L = o.level;
     S.grid[from] = 0; renderCell(from);
     addCoins(reward); S.served++;
-    S.streak = (S.streak || 0) + 1; S.bestStreak = Math.max(S.bestStreak || 0, S.streak);
+    if (L >= 3) { S.streak = (S.streak || 0) + 1; S.bestStreak = Math.max(S.bestStreak || 0, S.streak); } // streak counts pets Lv 3+
     const el = ordersEl.children[k], [x, y] = centerOf(el);
     const img = el.querySelector('.req-pet'), [ix, iy] = img ? centerOf(img) : [x, y];
     puff(ix, iy);                                   // the pet goes home in a puff of cloud
     floatText(x, y, '+' + fmt(reward), 'big'); sparks(x, y, 16); SFX.cash();
     coinShower(x, y, Math.min(14, 5 + L));          // coins fly from the family into the coin counter
-    if (S.streak > 1) floatText(x, y - 36, `🔥 Streak ×${streakMul().toFixed(1)}`, 'praise');
-    addXP(L * 4, x, y + 10);
+    if (S.streak > 1 && L >= 3) floatText(x, y - 36, `🔥 Streak ×${streakMul().toFixed(1)}`, 'praise');
+    addXP(L * 2, x, y + 10);
     S.orders[k] = { until: Date.now() + LEAVE_MS + custGap(), done: L, paid: reward, cust: o.cust, t: Date.now() };
     renderOrders(); renderStreak(); renderHUD(); save();
     tutEvent('fulfill');
@@ -709,13 +782,16 @@
   const patience = () => 10 + Math.random() * 5; // each customer waits 10–15 s
   const custGap = () => 1200 + Math.random() * 1300;   // empty counter before the next customer
   function newOrder() {
-    const onBoard = [...new Set(S.grid.filter((L, i) => L && S.open[i]))];
+    // 60%: the next tier above your best pair (merge it, then serve!) · 25%: a pet you own · 15%: something new
+    const counts = {};
+    S.grid.forEach((L, i) => { if (L && S.open[i]) counts[L] = (counts[L] || 0) + 1; });
+    const owned = Object.keys(counts).map(Number), pairs = owned.filter((L) => counts[L] >= 2 && L < MAX);
+    const r = Math.random();
     let level;
-    if (onBoard.length && Math.random() < 0.75) level = onBoard[(Math.random() * onBoard.length) | 0];
-    else {
-      const known = S.discovered.filter((L) => L >= spawnLevel());
-      level = known.length ? known[(Math.random() * known.length) | 0] : spawnLevel();
-    }
+    if (r < 0.6 && owned.length) level = (pairs.length ? Math.max(...pairs) : Math.max(...owned)) + 1 + (Math.random() < 0.3 ? 1 : 0);
+    else if (r < 0.85 && owned.length) level = owned[(Math.random() * owned.length) | 0];
+    else level = S.maxLevel + (Math.random() < 0.5 ? 1 : 0);
+    level = Math.max(spawnLevel(), Math.min(MAX, level));
     const reward = Math.round(income(level) * (40 + Math.random() * 30) + 25);
     const dur = patience();
     return { level, reward, dur, left: dur + ARRIVE, cust: (Math.random() * CUSTOMER_LOOKS) | 0, t: Date.now() };
@@ -882,7 +958,10 @@
   function hideAllModals() { modalQueue.length = 0; modal.classList.add('hidden'); }
 
   function refreshMenu() {
-    $('#menuContinue').classList.toggle('is-disabled', !hasSave);
+    $('#menuContinue').hidden = !hasSave;                      // a new player never sees a dead button
+    $('#menuNew').classList.toggle('mb-primary', !hasSave);
+    $('#menuVersion').textContent = `${VERSION} · ${Platform.kind === 'steam' ? 'desktop' : Platform.kind}`;
+    buildMenuScene();
     $('#menuSave').textContent = hasSave
       ? `Saved game · Level ${S.level} · ${S.discovered.length}/${MAX} pets found`
       : 'No saved game yet — start a new adventure!';
@@ -901,6 +980,46 @@
     });
     renderHUD();
   }
+
+  // Pets wander across the meadow behind the menu; the scene follows the mouse a little (parallax).
+  const menuScene = $('#menuScene');
+  let menuWalkers = [];
+  function buildMenuScene() {
+    const pool = hasSave ? S.discovered.slice() : [1, 2, 3, 4, 5, 6];
+    menuScene.innerHTML = ''; menuWalkers = [];
+    for (let k = 0; k < 8; k++) {
+      const depth = Math.random();                       // 0 = far, 1 = near
+      const w = document.createElement('div');
+      w.className = 'walker';
+      w.style.bottom = (3 + (1 - depth) * 15).toFixed(1) + '%';
+      w.style.zIndex = String(10 + Math.round(depth * 10));
+      const size = Math.round(52 + depth * 46);
+      const im = new Image(); im.src = IMGS[pool[(Math.random() * pool.length) | 0] - 1]; im.alt = ''; im.draggable = false;
+      im.style.width = im.style.height = size + 'px';
+      im.style.animationDelay = (-Math.random() * 1.5).toFixed(2) + 's';
+      w.appendChild(im); menuScene.appendChild(w);
+      const x = 5 + Math.random() * 90;
+      w.style.transform = `translateX(${x}vw)`;
+      menuWalkers.push({ el: w, im, x, next: performance.now() + Math.random() * 2500 });
+    }
+  }
+  setInterval(() => {
+    if (!isOn(mainMenu) || document.hidden) return;
+    const now = performance.now();
+    menuWalkers.forEach((w) => {
+      if (now < w.next) return;
+      const to = 4 + Math.random() * 88, dur = Math.max(2.5, Math.abs(to - w.x) / 7); // ~7vw per second
+      w.im.style.transform = to < w.x ? 'scaleX(-1)' : '';
+      w.el.style.transition = `transform ${dur.toFixed(1)}s linear`;
+      w.el.style.transform = `translateX(${to}vw)`;
+      w.x = to; w.next = now + dur * 1000 + 600 + Math.random() * 2600;
+    });
+  }, 400);
+  mainMenu.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const dx = e.clientX / innerWidth - 0.5, dy = e.clientY / innerHeight - 0.5;
+    menuScene.style.setProperty('--px', (-dx * 14).toFixed(1) + 'px'); menuScene.style.setProperty('--py', (-dy * 8).toFixed(1) + 'px');
+  });
 
   function openMainMenu() {
     cancelDrag(); save();
@@ -922,8 +1041,10 @@
       <div class="actions"><button class="btn go" data-close>Collect</button></div>`);
   }
 
+  let session = null;
   function startGame(isNew) {
     if (isNew) { S = fresh(); lastAfford = null; }
+    session = { earned: S.stats.earned, served: S.served, merges: S.stats.merges, found: S.discovered.length, t: Date.now() };
     started = true; paused = false;
     stopTutorial(); hideUndo(); clearWish(false); lastPlay = performance.now();
     hideAllModals();
@@ -983,6 +1104,15 @@
     if (exitModalPetImg) {
       const petIndex = Math.min(Math.max(0, S.maxLevel - 1), IMGS.length - 1);
       exitModalPetImg.src = IMGS[petIndex] || IMGS[2]; // Default to Kitten Puff or highest pet
+    }
+    const recap = $('#exitRecap');
+    if (recap) {
+      if (started && session && Date.now() - session.t > 20000) {
+        const found = S.discovered.length - session.found;
+        recap.innerHTML = `<b>This session</b><span>🪙 +${fmt(S.stats.earned - session.earned)}</span><span>🏡 ${S.served - session.served} adopted</span>
+          <span>✨ ${S.stats.merges - session.merges} merges</span>${found > 0 ? `<span>🐾 ${found} new pet${found > 1 ? 's' : ''}</span>` : ''}`;
+        recap.hidden = false;
+      } else recap.hidden = true;
     }
     if (exitModal) exitModal.classList.add('active');
   }
@@ -1045,8 +1175,8 @@
     if (e.key === 'Escape') {
       if (exitModal && isOn(exitModal)) { closeExitModal(); return; }
       if (isOn(ngConfirm)) { showLayer(ngConfirm, false); return; }
+      if (!modal.classList.contains('hidden')) { closeModal(); return; } // e.g. Settings opened from the menu
       if (isOn(mainMenu)) return;
-      if (!modal.classList.contains('hidden')) { closeModal(); return; }
       if (isOn(pauseScreen)) { resumeGame(); return; }
       pauseGame();
       return;
@@ -1099,7 +1229,7 @@
 
     const timer = setInterval(() => {
       // Advance progress smoothly
-      const inc = Math.floor(Math.random() * 8) + 4;
+      const inc = hasSave ? 22 + Math.floor(Math.random() * 10) : 11 + Math.floor(Math.random() * 7);
       currentPct = Math.min(100, currentPct + inc);
 
       if (progressBar) progressBar.style.width = `${currentPct}%`;
@@ -1117,7 +1247,7 @@
               loadingScreen.style.display = 'none';
             }, 450);
           }
-        }, 300);
+        }, 120);
       }
     }, 45);
   }
@@ -1589,7 +1719,7 @@
     c.classList.remove('tap'); void c.offsetWidth; c.classList.add('tap');
     showMood(c.querySelector('.pet'), L, HAPPY, 450);
     const v = income(L) * rushMul(); addCoins(v);
-    floatText(x, y - 20, '+' + fmt(v), 'auto');
+    if (SET.floats) floatText(x, y - 20, '+' + fmt(v), 'auto');
     if (autoSnd++ % 2 === 0) tone(1250 + (autoIdx % 5) * 80, 0.04, 'sine', 0.03, 1.3);
   }
 
@@ -1683,39 +1813,65 @@
   }
 
   // ---------- settings ----------
+  function toggleFullscreenAny() {
+    if (Platform.canFullscreen) { Platform.toggleFullscreen(); return; }
+    const d = document, el = d.documentElement;
+    try {
+      if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+      else { const r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' }); if (r && r.catch) r.catch(() => toast('Full screen is not available here.')); }
+    } catch (e) { toast('Full screen is not available here.'); }
+  }
   function showSettings() {
     modal.classList.toggle('top', paused || isOn(mainMenu)); // above the pause / menu screens
     const pct = (v) => Math.round(v * 100) + '%';
     const desk = Platform.isDesktop;
+    const slider = (id, icon, label, v, min = 0, max = 100, step = 5) =>
+      `<label class="set-row" for="${id}"><span>${icon} ${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${Math.round(v * 100)}"><output>${pct(v)}</output></label>`;
+    const check = (id, icon, label, hint, on) =>
+      `<label class="set-row check" for="${id}"><span>${icon} ${label} <small>${hint}</small></span><input type="checkbox" id="${id}" ${on ? 'checked' : ''}></label>`;
     openModal(`<h2>Settings</h2>
       <div class="set-list">
-        <label class="set-row" for="setMusic"><span>🎵 Music volume</span><input type="range" id="setMusic" min="0" max="100" step="5" value="${Math.round(SET.music * 100)}"><output>${pct(SET.music)}</output></label>
-        <label class="set-row" for="setSfx"><span>🔊 Sound effects</span><input type="range" id="setSfx" min="0" max="100" step="5" value="${Math.round(SET.sfx * 100)}"><output>${pct(SET.sfx)}</output></label>
-        ${desk ? `<label class="set-row" for="setZoom"><span>🔍 UI scale</span><input type="range" id="setZoom" min="80" max="150" step="10" value="${Math.round(SET.zoom * 100)}"><output>${pct(SET.zoom)}</output></label>` : ''}
-        <label class="set-row check" for="setMotion"><span>🌙 Reduce motion <small>calmer pet animations</small></span><input type="checkbox" id="setMotion" ${SET.reduceMotion ? 'checked' : ''}></label>
-        <label class="set-row check" for="setSci"><span>🔢 Scientific numbers <small>1.23e9 instead of 1.23B</small></span><input type="checkbox" id="setSci" ${SET.sci ? 'checked' : ''}></label>
-        ${desk ? `<div class="set-row btns"><button class="btn small" id="setFull">⛶ Fullscreen <kbd>F11</kbd></button><button class="btn small" id="setComp">🐾 Companion mode <kbd>C</kbd></button></div>` : ''}
+        <div class="set-head">Sound</div>
+        ${slider('setMaster', '🔈', 'Master volume', SET.master)}
+        ${slider('setMusic', '🎵', 'Music', SET.music)}
+        ${slider('setSfx', '🔊', 'Sound effects', SET.sfx)}
+        <div class="set-head">Display</div>
+        ${desk ? slider('setZoom', '🔍', 'UI scale', SET.zoom, 80, 150, 10) : ''}
+        ${check('setBig', '🔠', 'Larger text', 'bigger labels and prices', SET.bigText)}
+        ${check('setFloats', '✨', 'Floating numbers', '"+coins" pop-ups over the game', SET.floats)}
+        ${check('setMotion', '🌙', 'Reduce motion', 'calmer animations, no screen shake', SET.reduceMotion)}
+        ${check('setSci', '🔢', 'Scientific numbers', '1.23e9 instead of 1.23B', SET.sci)}
+        <div class="set-row btns"><button class="btn small" id="setFull">⛶ Fullscreen${desk ? ' <kbd>F11</kbd>' : ''}</button>${desk ? '<button class="btn small" id="setComp">🐾 Companion mode <kbd>C</kbd></button>' : '<button class="btn small" id="setReset">↺ Reset to defaults</button>'}</div>
+        ${desk ? '<div class="set-row btns one"><button class="btn small" id="setReset">↺ Reset to defaults</button></div>' : ''}
       </div>
-      <details class="keys"><summary>Keyboard shortcuts</summary>
+      <details class="keys"><summary>Controls</summary>
         <div class="key-grid">
           <span><kbd>Space</kbd> Buy egg</span><span><kbd>Q</kbd> Shop</span><span><kbd>B</kbd> Pet book</span><span><kbd>Esc</kbd> Pause</span>
           <span><kbd>1</kbd>–<kbd>8</kbd> Buy upgrade</span><span><kbd>Shift</kbd>+buy Max</span><span><kbd>Ctrl</kbd>+buy ×10</span><span>Right-click Sell pet</span>
-          <span><kbd>M</kbd> Music</span><span><kbd>N</kbd> Sounds</span><span><kbd>,</kbd> Settings</span>${desk ? '<span><kbd>F11</kbd> Fullscreen</span><span><kbd>C</kbd> Companion</span>' : ''}
+          <span><kbd>G</kbd> Auto Merge</span><span><kbd>←↑→↓</kbd> Look around</span><span><kbd>M</kbd> Music</span><span><kbd>N</kbd> Sounds</span><span><kbd>,</kbd> Settings</span>${desk ? '<span><kbd>F11</kbd> Fullscreen</span><span><kbd>C</kbd> Companion</span>' : ''}
         </div>
       </details>
       <div class="actions"><button class="btn go" data-close>Done</button></div>`, (root) => {
-      const slider = (id, key, after) => {
+      const bindSlider = (id, key, after) => {
         const el = root.querySelector('#' + id); if (!el) return;
         el.addEventListener('input', () => { SET[key] = el.value / 100; el.nextElementSibling.textContent = el.value + '%'; after && after(); });
         el.addEventListener('change', () => { saveSettings(); applySettings(); });
       };
-      slider('setMusic', 'music', () => MUSIC.setVolume(SET.music));
-      slider('setSfx', 'sfx', () => SFX.tap());
-      slider('setZoom', 'zoom');
-      root.querySelector('#setMotion').addEventListener('change', (e) => { SET.reduceMotion = e.target.checked; saveSettings(); applySettings(); });
-      root.querySelector('#setSci').addEventListener('change', (e) => { SET.sci = e.target.checked; saveSettings(); renderAll(); });
-      const full = root.querySelector('#setFull'); if (full) full.onclick = () => Platform.toggleFullscreen();
+      bindSlider('setMaster', 'master', () => { MUSIC.setVolume(SET.music * SET.master); SFX.tap(); });
+      bindSlider('setMusic', 'music', () => MUSIC.setVolume(SET.music * SET.master));
+      bindSlider('setSfx', 'sfx', () => SFX.tap());
+      bindSlider('setZoom', 'zoom');
+      const bindCheck = (id, key, after) => root.querySelector('#' + id).addEventListener('change', (e) => { SET[key] = e.target.checked; saveSettings(); applySettings(); after && after(); });
+      bindCheck('setBig', 'bigText', () => { dockSig = ''; renderAll(); });
+      bindCheck('setFloats', 'floats');
+      bindCheck('setMotion', 'reduceMotion');
+      bindCheck('setSci', 'sci', () => renderAll());
+      root.querySelector('#setFull').onclick = toggleFullscreenAny;
       const comp = root.querySelector('#setComp'); if (comp) comp.onclick = () => { closeModal(); setCompanion(true); };
+      root.querySelector('#setReset').onclick = () => {
+        Object.assign(SET, SET_DEFAULTS); saveSettings(); applySettings(); renderAll();
+        closeModal(); setTimeout(showSettings, 150); toast('Settings reset to defaults');
+      };
     });
   }
   $('#setBtn').addEventListener('click', showSettings);
@@ -1776,7 +1932,7 @@
     const up = el.closest('[data-up]');
     if (up) {
       const k = up.dataset.up, idx = Object.keys(UPG).indexOf(k) + 1;
-      return `<b>${UPG[k].name}</b><br>Click: buy 1 · Ctrl: ×10 · Shift: max${idx <= 9 ? `<br><small>Hotkey: ${idx}</small>` : ''}`;
+      return `<b>${UPG[k].name}</b><br>${UPG[k].desc(S.upg[k])}<br><small>Click: buy 1 · Ctrl: ×10 · Shift: max${idx <= 9 ? ` · Hotkey: ${idx}` : ''}</small>`;
     }
     const t = el.closest('[data-tip]');
     if (t && TIPS[t.dataset.tip]) return TIPS[t.dataset.tip]();
@@ -1848,6 +2004,7 @@
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (e.code === 'F11' && Platform.canFullscreen) { e.preventDefault(); Platform.toggleFullscreen(); return; }
+    if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey) { toggleFullscreenAny(); return; }
     if (e.code === 'KeyM') { toggleMusic(); return; }
     if (e.code === 'KeyN') { toggleSound(); return; }
     if (e.code === 'Comma' && modal.classList.contains('hidden') && !(exitModal && isOn(exitModal))) { showSettings(); return; }
@@ -1919,6 +2076,7 @@
     board.style.setProperty('--px', pan.x); board.style.setProperty('--py', pan.y);
     boardFrame.classList.toggle('can-l', pan.x > 0.05); boardFrame.classList.toggle('can-r', pan.x < COLS - VIEW - 0.05);
     boardFrame.classList.toggle('can-u', pan.y > 0.05); boardFrame.classList.toggle('can-d', pan.y < ROWS - VIEW - 0.05);
+    for (let i = 0; i < N; i++) cells[i].classList.toggle('off', !inView(i)); // pause animations you can't see
   }
   function snapPan() { pan.x = Math.round(pan.x); pan.y = Math.round(pan.y); applyPan(true); }
   function centerOnYard() {
@@ -1963,6 +2121,13 @@
     pan.x += (e.shiftKey ? e.deltaY : e.deltaX) / P; if (!e.shiftKey) pan.y += e.deltaY / P;
     applyPan(false); clearTimeout(boardView._wt); boardView._wt = setTimeout(snapPan, 160);
   }, { passive: false });
+  boardFrame.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const r = boardFrame.getBoundingClientRect(), m = 40;
+    boardFrame.classList.toggle('near-l', e.clientX - r.left < m); boardFrame.classList.toggle('near-r', r.right - e.clientX < m);
+    boardFrame.classList.toggle('near-u', e.clientY - r.top < m); boardFrame.classList.toggle('near-d', r.bottom - e.clientY < m);
+  });
+  boardFrame.addEventListener('pointerleave', () => boardFrame.classList.remove('near-l', 'near-r', 'near-u', 'near-d'));
   boardFrame.querySelectorAll('.pan-arrow').forEach((b) => b.addEventListener('click', () => {
     const [dx, dy] = b.dataset.pan.split(',').map(Number);
     pan.x += dx * 3; pan.y += dy * 3; snapPan(); SFX.tap();
@@ -2092,13 +2257,15 @@
   let tick = 0, lastFrame = performance.now(), acc = 0;
   function secondTick() {
     tick++;
+    let tickGain = 0;
     // Every pet pays out every 3 seconds, staggered across the board.
     for (let i = 0; i < N; i++) {
       const L = S.grid[i];
       if (!L || (i + tick) % 3) continue;
-      const v = income(L) * 3 * rushMul(); addCoins(v);
-      if (!inView(i)) continue;
-      const [x, y] = centerOf(cells[i]); floatText(x, y - 18, '+' + fmt(v));
+      const v = income(L) * 3 * rushMul(); addCoins(v); tickGain += v;
+    }
+    if (tickGain > 0 && SET.floats && !companion) {
+      const [px, py] = centerOf(coinPill); floatText(px + 10, py - 24, '+' + fmt(tickGain), 'tick');
     }
     const now = Date.now();
     let changed = false;
@@ -2111,7 +2278,17 @@
     if (tick % 5 === 0) save();
   }
 
+  let coinShown = null;
+  const coinsEl = $('#coins');
+  function paintCoins(dt) {
+    if (coinShown === null) coinShown = S.coins;
+    const d = S.coins - coinShown;
+    coinShown = Math.abs(d) < 1 ? S.coins : coinShown + d * Math.min(1, dt * 9); // ~400 ms ease-out roll
+    const txt = fmt(coinShown);
+    if (coinsEl.textContent !== txt) coinsEl.textContent = txt;
+  }
   function frame(t) {
+    paintCoins(Math.min(0.1, Math.max(0, (t - lastFrame) / 1000)));
     if (paused) { lastFrame = t; requestAnimationFrame(frame); return; }
     const dt = Math.min(0.25, (t - lastFrame) / 1000); lastFrame = t;
     acc += dt;
@@ -2140,6 +2317,7 @@
   // ---------- boot: loading panel -> main menu ----------
   applySettings();
   initLoadingScreen();
+  (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { try { audioCtx(); } catch (e) {} });
   renderAll(); centerOnYard();
   openMainMenu(); // sits under the loading panel and is revealed when it fades out
   requestAnimationFrame(frame);
